@@ -10,53 +10,122 @@ GUILD_ID = int(os.getenv('GUILD_ID'))
 
 bot = commands.Bot()
 
+
+def get_games_from_file(file: str) -> list:
+    try:
+        with open(file, 'r') as f:
+            games = f.readlines()
+        return games
+    except FileNotFoundError:
+        return []
+
+
+def write_games_to_file(file: str, game:str) -> None:
+    with open(file, 'w') as f:
+        f.write(game)
+
+
+def append_game_to_file(file: str, game: str) -> None:
+    with open(file, 'a') as f:
+        f.write(game)
+
+
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
-@bot.slash_command(guild_ids=[GUILD_ID])
-async def hello(interaction: nextcord.Interaction):
-    await interaction.channel.send('Hello!')
 
 @bot.slash_command(guild_ids=[GUILD_ID])
-async def addgame(interaction: nextcord.Interaction, game_name: str):
+async def get_active_games(interaction: nextcord.Interaction):
+    games = [game.strip('\n') for game in get_games_from_file('active.txt')]
+    await interaction.response.send_message(f'Active games: {games}')
+
+
+@bot.slash_command(guild_ids=[GUILD_ID])
+async def get_backlog_games(interaction: nextcord.Interaction):
+    games = [game.strip('\n') for game in get_games_from_file('backlog.txt')]
+    await interaction.response.send_message(f'Backlogged games: {games}')
+
+
+@bot.slash_command(guild_ids=[GUILD_ID])
+async def get_inactive_games(interaction: nextcord.Interaction):
+    games = [game.strip('\n') for game in get_games_from_file('inactive.txt')]
+    await interaction.response.send_message(f'Inactive games: {games}')
+
+
+@bot.slash_command(guild_ids=[GUILD_ID])
+async def add_game_backlog(interaction: nextcord.Interaction, game: str):
     try:
-        with open('active.txt', 'a') as file:
-            file.write(f'{game_name}\n')
+        with open('backlog.txt', 'a') as file:
+            file.write(f'{game}\n')
 
-        await interaction.response.send_message(f'{game_name} has been added to list of active games')
-    except Exception:
-        await interaction.response.send_message(f'There was an error processing your request: {Exception}')
+        await interaction.response.send_message(f'{game} has been added to list of backlogged games')
+    except Exception as e:
+        await interaction.response.send_message(f'There was an error processing your request: {e}')
 
-
-# @bot.slash_command(guild_ids=[GUILD_ID])
-# async def getactivegames(interaction: nextcord.Interaction):
 
 @bot.slash_command(guild_ids=[GUILD_ID])
-async def removegame(interaction: nextcord.Interaction, game_name: str):
+async def add_game_active(interaction: nextcord.Interaction, game: str):
     try:
-        # Read all games from active.txt
-        with open('active.txt', 'r') as file:
-            games = file.readlines()
+        backlog_games = get_games_from_file('backlog.txt')
+        inactive_games = get_games_from_file('inactive_games.txt')
 
-        # Remove the specified game name if it exists
-        game_to_remove = game_name + '\n'
+        game_to_remove = game + '\n'
+        if game_to_remove in backlog_games:
+            backlog_games.remove(game_to_remove)
+
+            with open('backlog.txt', 'w') as file:
+                file.writelines(backlog_games)
+
+            with open('active.txt', 'a') as file:
+                file.write(game + '\n')
+
+            await interaction.response.send_message(f'{game} has been moved from backlog to active games')
+
+        elif game_to_remove in inactive_games:
+            inactive_games.remove(game_to_remove)
+
+            with open('inactive.txt', 'w') as file:
+                file.writelines(inactive_games)
+
+            with open('active.txt', 'a') as file:
+                file.write(game + '\n')
+
+            await interaction.response.send_message(f'{game} has been moved from inactive to active games')
+
+        else:
+            with open('active.txt', 'a') as file:
+                file.write(game + '\n')
+
+            await interaction.response.send_message(f'{game} has been added to active games')
+
+    except Exception as e:
+        await interaction.response.send_message(f'There was an error processing your request: {e}')
+
+
+@bot.slash_command(guild_ids=[GUILD_ID])
+async def add_game_inactive(interaction: nextcord.Interaction, game: str):
+    try:
+        games = get_games_from_file('active.txt')
+
+        game_to_remove = game + '\n'
         if game_to_remove in games:
             games.remove(game_to_remove)
 
-            # Write the updated list back to active.txt
             with open('active.txt', 'w') as file:
                 file.writelines(games)
 
-            # Append the removed game name to finished.txt
-            with open('finished.txt', 'a') as file:
-                file.write(game_name + '\n')
+            with open('inactive.txt', 'a') as file:
+                file.write(game + '\n')
 
             await interaction.response.send_message(
-                f'Game "{game_name}" has been removed from the list of active games and added to finished games.')
+                f'{game} has been removed from the list of active games and added to inactive games')
         else:
-            await interaction.response.send_message(f'Game "{game_name}" was not found in the list of active games.')
+            games = [game.strip('\n') for game in games]
+            await interaction.response.send_message(f'{game} was not found in the list of active games\n'
+                                                    f'Active games: {games}')
     except Exception as e:
         await interaction.response.send_message(f'There was an error processing your request: {e}')
+
 
 bot.run(BOT_TOKEN)
