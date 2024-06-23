@@ -163,3 +163,4 @@ cython_debug/
 
 # Text files used to store the games
 *.txt
+!requirements.txt
